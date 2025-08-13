@@ -1,0 +1,6 @@
+pillow==10.3.0
+imagehash
+send2trash
+pyqt5
+PyQt-Fluent-Widgets==1.8.1
+pyinstaller
