@@ -570,6 +570,5 @@ if __name__ == '__main__':
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
     app = QApplication(sys.argv)
     window = DuplicateFinderUI()
-    moveCenter(window)
     window.show()
     sys.exit(app.exec_())
