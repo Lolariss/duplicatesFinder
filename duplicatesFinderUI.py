@@ -5,7 +5,7 @@ from pathlib import Path
 
 from duplicatesFinder import DuplicateFinder
 
-from PyQt5.QtCore import pyqtSignal, Qt, QProcess
+from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor
 from PyQt5.QtWidgets import QVBoxLayout, QApplication, QFileDialog, QFrame, QWidget, QStackedWidget, QLabel, QTableWidgetItem, QHBoxLayout, QSplitter, \
     QTableWidget
