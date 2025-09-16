@@ -1,13 +1,13 @@
+import sys
 import _thread
 import send2trash
-from os import startfile
 from pathlib import Path
-
+from utils import showFile, showImage, logger
 from duplicatesFinder import DuplicateFinder
 
-from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor
-from PyQt5.QtWidgets import QVBoxLayout, QApplication, QFileDialog, QFrame, QWidget, QStackedWidget, QLabel, QTableWidgetItem, QHBoxLayout, QSplitter, \
+from PySide6.QtCore import Signal, Qt, QMargins
+from PySide6.QtGui import QImage, QPixmap, QPainter, QPen, QColor
+from PySide6.QtWidgets import QVBoxLayout, QApplication, QFileDialog, QFrame, QWidget, QStackedWidget, QLabel, QTableWidgetItem, QHBoxLayout, QSplitter, \
     QTableWidget
 from qfluentwidgets import LineEdit, PushButton, MessageBox, TabBar, TabCloseButtonDisplayMode, FluentIcon, Icon, MSFluentTitleBar, CommandBarView, Action, \
     FlyoutAnimationType, Flyout, TableWidget, IndeterminateProgressBar, CheckBox, ComboBox
@@ -15,13 +15,13 @@ from qfluentwidgets.components.widgets.frameless_window import FramelessWindow
 
 
 class DuplicateFinderUI(FramelessWindow):
-    signalPostProcess = pyqtSignal(object)
+    signalPostProcess = Signal(object)
 
     def __init__(self):
         super().__init__()
         self.duplicatesFinder = DuplicateFinder()
         self.highDpiScale = self.windowHandle().devicePixelRatio()
-        self.signalPostProcess.connect(self.process)
+        self.signalPostProcess.connect(self.postprocess)
         self.__initUI()
 
     def __initUI(self):
@@ -36,13 +36,13 @@ class DuplicateFinderUI(FramelessWindow):
         layoutFrame = self.__initLayoutUI()
 
         self.tableFrame = TableFrame()
-        self.tableFrame.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.tableFrame.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.tableFrame.currentCellChanged.connect(self.setCompareImage)
         # self.tableFrame.cellClicked.connect(self.setCompareImage)
         self.tableFrame.setObjectName("TableFrame")
         self.tableFrame.setStyleSheet(self.tableFrame.styleSheet() + """\n#TableFrame{background-color: rgba(250, 250, 250, 200);}""")
 
-        self.splitFrame = QSplitter(Qt.Vertical)
+        self.splitFrame = QSplitter(Qt.Orientation.Vertical)
         self.splitFrame.addWidget(layoutFrame)
         self.splitFrame.addWidget(self.tableFrame)
         self.splitFrame.setStretchFactor(0, 8)
@@ -102,13 +102,13 @@ class DuplicateFinderUI(FramelessWindow):
         hbox.addLayout(controlPanel, stretch=2)
 
         inputFrame = CommonFrame()
-        inputFrame.setContentsMargins(5, 0, 5, 0)
+        inputFrame.setContentsMargins(QMargins(5, 0, 5, 0))
         inputFrame.addLayout(hbox)
         return inputFrame
 
     def __initLayoutUI(self):
         layoutFrame = CommonFrame()
-        layoutFrame.setContentsMargins(15, 10, 15, 10)
+        layoutFrame.setContentsMargins(QMargins(15, 10, 15, 10))
         layoutFrame.setObjectName("layoutFrame")
         layoutFrame.setStyleSheet('''#layoutFrame {border: 1px solid rgba(0, 0, 0, 15);border-radius: 4px;background-color: rgba(250, 250, 250, 200);}''')
 
@@ -117,7 +117,7 @@ class DuplicateFinderUI(FramelessWindow):
         self.srcImgFrame = ImageFrame(dpiScale=self.highDpiScale)
         self.srcImgFrame.signalFileRemoved.connect(self.onImageRemoved)
         srcVbox = QVBoxLayout()
-        srcVbox.addWidget(self.srcInfoBtn, alignment=Qt.AlignCenter, stretch=1)
+        srcVbox.addWidget(self.srcInfoBtn, alignment=Qt.AlignmentFlag.AlignCenter, stretch=1)
         srcVbox.addWidget(self.srcImgFrame, stretch=9)
 
         self.tarInfoBtn = PushButton(FluentIcon.TAG, "X://xxxx/tar name.png")
@@ -125,7 +125,7 @@ class DuplicateFinderUI(FramelessWindow):
         self.tarImgFrame = ImageFrame(dpiScale=self.highDpiScale)
         self.tarImgFrame.signalFileRemoved.connect(self.onImageRemoved)
         tarVbox = QVBoxLayout()
-        tarVbox.addWidget(self.tarInfoBtn, alignment=Qt.AlignCenter, stretch=1)
+        tarVbox.addWidget(self.tarInfoBtn, alignment=Qt.AlignmentFlag.AlignCenter, stretch=1)
         tarVbox.addWidget(self.tarImgFrame, stretch=9)
 
         hbox = QHBoxLayout()
@@ -163,50 +163,67 @@ class DuplicateFinderUI(FramelessWindow):
         currentName = self.pivotWidget.getCurrentWidgetObjectName()
         isDeepSeek = self.deepSeekBox.isChecked()
         hashType, threshold = {"色彩结构感知": ("phash", 12), "边缘形状感知": ("dhash", 10)}.get(self.hashTypeBox.currentText())
-        if currentName == "dirLineEdit":
-            def startSingle():
-                srcHashes = self.duplicatesFinder.calcHashes(srcDir, hashType, isDeepSeek)
-                duplicates = self.duplicatesFinder.findDuplicate(srcHashes, threshold)
-                self.signalPostProcess.emit(duplicates)
 
+        if currentName == "dirLineEdit":
             srcDir = self.dirLineEdit.getDirectory()
             if srcDir is None or not srcDir.exists():
                 self.showMsgDialog("提示", "找不到图片的目录路径(ノдヽ)")
                 self.setInputStatus(True)
                 return
-            _thread.start_new_thread(startSingle, ())
+            _thread.start_new_thread(self.findDuplicate, (srcDir, hashType, isDeepSeek, threshold, False))
 
         elif currentName == "bothLineEdit":
-            def startBoth():
-                srcHashes = self.duplicatesFinder.calcHashes(srcDir, hashType, isDeepSeek)
-                tarHashes = self.duplicatesFinder.calcHashes(tarDir, hashType, isDeepSeek)
-                duplicates = self.duplicatesFinder.findDuplicates(srcHashes, tarHashes, threshold)
-                self.signalPostProcess.emit(duplicates)
-
             srcDir = self.srcLineEdit.getDirectory()
             tarDir = self.tarLineEdit.getDirectory()
             if srcDir is None or tarDir is None or not srcDir.exists() or not tarDir.exists():
                 self.showMsgDialog("提示", "找不到图片的目录路径(°Д°)")
                 self.setInputStatus(True)
                 return
-            _thread.start_new_thread(startBoth, ())
+            _thread.start_new_thread(self.findDuplicates, (srcDir, tarDir, hashType, isDeepSeek, threshold))
+
         else:
             pass
 
-    def process(self, duplicates: dict):
+    def findDuplicate(self, srcDir: str | Path, hashType: str, isDeepSeek: bool = False, threshold: int = 12, fullMatch: bool = False):
+        try:
+            logger.info(f"开始工作了, 检查[{srcDir}]目录下的图片.")
+            srcHashes = self.duplicatesFinder.calcHashes(srcDir, hashType, isDeepSeek)
+            duplicates = self.duplicatesFinder.findDuplicate(srcHashes, threshold, fullMatch)
+            self.signalPostProcess.emit(duplicates)
+        except Exception as e:
+            logger.exception(e)
+            self.showMsgDialog("错误", "找不同时走神了...(-`д-´)")
+
+    def findDuplicates(self, srcDir: str | Path, tarDir: str | Path, hashType: str, isDeepSeek: bool = False, threshold: int = 12):
+        try:
+            logger.info(f"开始工作了, 对比[{srcDir}]和[{tarDir}]目录下的图片.")
+            srcHashes = self.duplicatesFinder.calcHashes(srcDir, hashType, isDeepSeek)
+            tarHashes = self.duplicatesFinder.calcHashes(tarDir, hashType, isDeepSeek)
+            duplicates = self.duplicatesFinder.findDuplicates(srcHashes, tarHashes, threshold)
+            self.signalPostProcess.emit(duplicates)
+        except Exception as e:
+            logger.exception(e)
+            self.showMsgDialog("错误", "找不同时走神了...(-`д-´)")
+
+    def postprocess(self, duplicates: dict):
         self.setInputStatus(True)
         if len(duplicates) <= 0:
-            self.showMsgDialog("提示", "没检查到重复图片(￣ω￣)")
+            self.showMsgDialog("提示", "没找到重复的图片(￣ω￣)")
             return
         else:
             self.showMsgDialog("提示", "检查工作完成啦(￣▽￣)")
 
-        sheet = []
-        for srcPath, tarInfos in duplicates.items():
-            for nameInfo in tarInfos:
-                sheet.append([srcPath, str(nameInfo[0]), f"{nameInfo[1] * 100}%"])
-        if len(sheet) > 1:
-            sheet = sorted(sheet, key=lambda x: float(x[2].rstrip('%')), reverse=True)
+        try:
+            sheet = []
+            for srcPath, tarInfos in duplicates.items():
+                for nameInfo in tarInfos:
+                    sheet.append([srcPath, str(nameInfo[0]), f"{nameInfo[1] * 100}%"])
+            if len(sheet) > 1:
+                sheet = sorted(sheet, key=lambda x: float(x[2].rstrip('%')), reverse=True)
+        except Exception as e:
+            logger.exception(e)
+            self.showMsgDialog("错误", "整理重复图片时眼花了...┐(・o・)┌")
+
         self.tableFrame.setTableData(sheet, ["源图", '重图', '相似度'], [str(i) for i in range(1, len(sheet) + 1)])
         if self.isMaximized():
             self.showNormal()
@@ -267,8 +284,8 @@ class CommonFrame(QFrame):
     def addLayout(self, layout, **kwargs):
         self.vBoxLayout.addLayout(layout, **kwargs)
 
-    def setContentsMargins(self, left: int, top: int, right: int, bottom: int):
-        self.vBoxLayout.setContentsMargins(left, top, right, bottom)
+    def setContentsMargins(self, margins: QMargins):
+        self.vBoxLayout.setContentsMargins(margins)
 
     def addSpacing(self, value: int):
         self.vBoxLayout.addSpacing(value)
@@ -278,7 +295,7 @@ class CommonFrame(QFrame):
 
 
 class PivotWidget(QFrame):
-    signalCurrentChanged = pyqtSignal(int)
+    signalCurrentChanged = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -286,11 +303,10 @@ class PivotWidget(QFrame):
         self.pivot.setCloseButtonDisplayMode(TabCloseButtonDisplayMode.NEVER)
         self.pivot.setAddButtonVisible(False)
         self.pivot.setTabMaximumWidth(100)
-        self.pivot.setMovable(True)
         self.pivot.setScrollable(True)
         self.stackedWidget = QStackedWidget(self)
         self.vBoxLayout = QVBoxLayout(self)
-        self.vBoxLayout.addWidget(self.pivot, alignment=Qt.AlignTop)
+        self.vBoxLayout.addWidget(self.pivot, alignment=Qt.AlignmentFlag.AlignTop)
         self.vBoxLayout.addWidget(self.stackedWidget)
         self.stackedWidget.currentChanged.connect(self.onCurrentIndexChanged)
         self.currentWidget = None
@@ -303,7 +319,7 @@ class PivotWidget(QFrame):
     def setCurrentWidget(self, widget):
         self.currentWidget = widget
         self.stackedWidget.setCurrentWidget(widget)
-        self.pivot.setCurrentItem(widget.objectName())
+        self.pivot.setCurrentTab(widget.objectName())
 
     def onCurrentIndexChanged(self, index):
         widget = self.stackedWidget.widget(index)
@@ -329,14 +345,14 @@ class PathLineEdit(LineEdit):
         return self.latestDir
 
     def mouseDoubleClickEvent(self, event):
-        if event.button() != Qt.LeftButton:
+        if event.button() != Qt.MouseButton.LeftButton:
             return
         self.choiceDirectory('选择目录')
 
     def choiceDirectory(self, title: str):
         if self.latestDir is None:
             self.latestDir = Path.home()
-        fileDir = QFileDialog.getExistingDirectory(self.window(), title, str(self.latestDir), options=QFileDialog.ShowDirsOnly)
+        fileDir = QFileDialog.getExistingDirectory(self.window(), title, str(self.latestDir), options=QFileDialog.Option.ShowDirsOnly)
         if not fileDir:
             return
         self.latestDir = Path(fileDir)
@@ -361,7 +377,7 @@ class PathLineEdit(LineEdit):
 
 
 class ImageFrame(CommonFrame):
-    signalFileRemoved = pyqtSignal(str)
+    signalFileRemoved = Signal(str)
 
     def __init__(self, imagePath: str | Path = None, dpiScale: float = 1.0, parent=None):
         super().__init__(parent)
@@ -378,7 +394,7 @@ class ImageFrame(CommonFrame):
         self.setStyleSheet('''#ImageFrame{border: 1px solid rgba(0, 0, 0, 15);border-radius: 4px;background-color: rgb(245, 245, 245);}''')
         self.imgLabel = QLabel()
         self.imgLabel.setMinimumSize(1, 1)
-        self.imgLabel.setAlignment(Qt.AlignCenter)
+        self.imgLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.nameLabel = QLabel()
         self.nameLabel.setObjectName('picNameStyle')
@@ -395,9 +411,9 @@ class ImageFrame(CommonFrame):
         self.setInfo(self.imagePath.name if isinstance(self.imagePath, Path) else "image name.png", 'xxxx X xxxx', 'xxx KB/MB')
 
         hbox = QHBoxLayout()
-        hbox.addWidget(self.nameLabel, alignment=Qt.AlignCenter, stretch=4)
-        hbox.addWidget(self.sizeLabel, alignment=Qt.AlignCenter, stretch=3)
-        hbox.addWidget(self.resolutionLabel, alignment=Qt.AlignCenter, stretch=3)
+        hbox.addWidget(self.nameLabel, alignment=Qt.AlignmentFlag.AlignCenter, stretch=4)
+        hbox.addWidget(self.sizeLabel, alignment=Qt.AlignmentFlag.AlignCenter, stretch=3)
+        hbox.addWidget(self.resolutionLabel, alignment=Qt.AlignmentFlag.AlignCenter, stretch=3)
 
         self.addWidget(self.imgLabel, stretch=90)
         self.addLayout(hbox, stretch=10)
@@ -429,7 +445,7 @@ class ImageFrame(CommonFrame):
     def adjustImageSize(self):
         """根据当前label尺寸缩放图片"""
         if self.image is not None:
-            scaledPixmap = QPixmap.fromImage(self.image.scaled(int(self.imgLabel.width() * self.imageDpiScale) - 2, int(self.imgLabel.height() * self.imageDpiScale) - 2, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            scaledPixmap = QPixmap.fromImage(self.image.scaled(int(self.imgLabel.width() * self.imageDpiScale) - 2, int(self.imgLabel.height() * self.imageDpiScale) - 2, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
             scaledPixmap.setDevicePixelRatio(self.imageDpiScale)
             self.imgLabel.setPixmap(scaledPixmap)
 
@@ -441,7 +457,7 @@ class ImageFrame(CommonFrame):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setPen(QPen(QColor(200, 200, 200), 0.5, Qt.DotLine))
+        painter.setPen(QPen(QColor(200, 200, 200), 0.5, Qt.PenStyle.DotLine))
 
         # 绘制水平网格线
         for y in range(0, self.height(), 10):  # 20为网格间距
@@ -455,7 +471,7 @@ class ImageFrame(CommonFrame):
 
     def mousePressEvent(self, event):
         currentButton = event.button()
-        if currentButton == Qt.RightButton:
+        if currentButton == Qt.MouseButton.RightButton:
             view = CommandBarView(self)
 
             deleteAction = Action(FluentIcon.DELETE, self.tr('删除'), triggered=self.deleteImage)
@@ -542,33 +558,22 @@ class TableFrame(TableWidget):
                 row += 1  # 只有不删除时才递增行号
 
 
-def showFile(filePath: str | Path):
-    filePath = filePath if isinstance(filePath, Path) else Path(filePath)
-    if not filePath.exists():
-        return
-    filePath = str(filePath).replace("/", "\\")
-    startfile("explorer.exe", arguments=f'/select,"{filePath}"')
-
-
-def showImage(imagePath: str | Path):
-    imagePath = imagePath if isinstance(imagePath, Path) else Path(imagePath)
-    if not imagePath.exists():
-        return
-    startfile(imagePath)
-
-
 def moveCenter(widget: QWidget):
-    desktop = QApplication.desktop().availableGeometry()
-    w, h = desktop.width(), desktop.height()
+    rect = QApplication.primaryScreen().availableGeometry()
+    w, h = rect.width(), rect.height()
     widget.move(w // 2 - widget.width() // 2, h // 2 - widget.height() // 2)
 
 
 if __name__ == '__main__':
-    import sys
-    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-    app = QApplication(sys.argv)
-    window = DuplicateFinderUI()
-    window.show()
-    sys.exit(app.exec_())
+    logger.info("----------------------------begin--------------------------------")
+    try:
+        app = QApplication(sys.argv)
+        app.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+        window = DuplicateFinderUI()
+        window.show()
+        sys.exit(app.exec())
+    except BaseException as e:
+        if isinstance(e, SystemExit) and e.code == 0:
+            logger.info("-----------------------------end---------------------------------")
+        else:
+            logger.exception(f"未知错误: {e}")
