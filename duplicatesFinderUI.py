@@ -33,18 +33,13 @@ class DuplicateFinderUI(FramelessWindow):
 
         inputFrame = self.__initInputUI()
 
-        layoutFrame = self.__initLayoutUI()
+        imageFrame = self.__initImageUI()
 
-        self.tableFrame = TableFrame()
-        self.tableFrame.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tableFrame.currentCellChanged.connect(self.setCompareImage)
-        # self.tableFrame.cellClicked.connect(self.setCompareImage)
-        self.tableFrame.setObjectName("TableFrame")
-        self.tableFrame.setStyleSheet(self.tableFrame.styleSheet() + """\n#TableFrame{background-color: rgba(250, 250, 250, 200);}""")
+        tableFrame = self.__initTableUI()
 
         self.splitFrame = QSplitter(Qt.Orientation.Vertical)
-        self.splitFrame.addWidget(layoutFrame)
-        self.splitFrame.addWidget(self.tableFrame)
+        self.splitFrame.addWidget(imageFrame)
+        self.splitFrame.addWidget(tableFrame)
         self.splitFrame.setStretchFactor(0, 8)
         self.splitFrame.setStretchFactor(1, 2)
 
@@ -106,34 +101,32 @@ class DuplicateFinderUI(FramelessWindow):
         inputFrame.addLayout(hbox)
         return inputFrame
 
-    def __initLayoutUI(self):
-        layoutFrame = CommonFrame()
-        layoutFrame.setContentsMargins(QMargins(15, 10, 15, 10))
-        layoutFrame.setObjectName("layoutFrame")
-        layoutFrame.setStyleSheet('''#layoutFrame {border: 1px solid rgba(0, 0, 0, 15);border-radius: 4px;background-color: rgba(250, 250, 250, 200);}''')
+    def __initImageUI(self):
+        imageFrame = CommonFrame()
+        imageFrame.setContentsMargins(QMargins(15, 10, 15, 10))
+        imageFrame.setObjectName("imageFrame")
+        imageFrame.setStyleSheet('''#imageFrame {border: 1px solid rgba(0, 0, 0, 15);border-radius: 4px;background-color: rgba(250, 250, 250, 200);}''')
 
-        self.srcInfoBtn = PushButton(FluentIcon.TAG, "X://xxxx/src name.png")
-        self.srcInfoBtn.pressed.connect(self.infoButtonClick)
         self.srcImgFrame = ImageFrame(dpiScale=self.highDpiScale)
         self.srcImgFrame.signalFileRemoved.connect(self.onImageRemoved)
-        srcVbox = QVBoxLayout()
-        srcVbox.addWidget(self.srcInfoBtn, alignment=Qt.AlignmentFlag.AlignCenter, stretch=1)
-        srcVbox.addWidget(self.srcImgFrame, stretch=9)
 
-        self.tarInfoBtn = PushButton(FluentIcon.TAG, "X://xxxx/tar name.png")
-        self.tarInfoBtn.pressed.connect(self.infoButtonClick)
         self.tarImgFrame = ImageFrame(dpiScale=self.highDpiScale)
         self.tarImgFrame.signalFileRemoved.connect(self.onImageRemoved)
-        tarVbox = QVBoxLayout()
-        tarVbox.addWidget(self.tarInfoBtn, alignment=Qt.AlignmentFlag.AlignCenter, stretch=1)
-        tarVbox.addWidget(self.tarImgFrame, stretch=9)
 
         hbox = QHBoxLayout()
-        hbox.addLayout(srcVbox, stretch=5)
+        hbox.addWidget(self.srcImgFrame, stretch=5)
         hbox.addSpacing(10)
-        hbox.addLayout(tarVbox, stretch=5)
-        layoutFrame.addLayout(hbox)
-        return layoutFrame
+        hbox.addWidget(self.tarImgFrame, stretch=5)
+        imageFrame.addLayout(hbox)
+        return imageFrame
+
+    def __initTableUI(self):
+        self.tableFrame = TableFrame()
+        self.tableFrame.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tableFrame.currentCellChanged.connect(self.setCompareImage)
+        self.tableFrame.setObjectName("TableFrame")
+        self.tableFrame.setStyleSheet(self.tableFrame.styleSheet() + """\n#TableFrame{background-color: rgba(250, 250, 250, 200);}""")
+        return self.tableFrame
 
     def setInputStatus(self, enable: bool):
         if enable:
@@ -231,23 +224,13 @@ class DuplicateFinderUI(FramelessWindow):
         self.tableFrame.setCurrentCell(0, 0)
         moveCenter(self)
 
-    def setCompareImage(self, r, c=None):
+    def setCompareImage(self, row, col=None):
         rowCount = self.tableFrame.rowCount()
-        if 0 <= r < rowCount:
-            srcPath = self.tableFrame.item(r, 0).text()
-            tarPath = self.tableFrame.item(r, 1).text()
+        if 0 <= row < rowCount:
+            srcPath = self.tableFrame.item(row, 0).text()
+            tarPath = self.tableFrame.item(row, 1).text()
             self.srcImgFrame.setImage(srcPath)
-            self.srcInfoBtn.setText(srcPath)
             self.tarImgFrame.setImage(tarPath)
-            self.tarInfoBtn.setText(tarPath)
-
-    def infoButtonClick(self):
-        if self.srcInfoBtn.isPressed:
-            showImage(self.srcInfoBtn.text())
-        elif self.tarInfoBtn.isPressed:
-            showImage(self.tarInfoBtn.text())
-        else:
-            pass
 
     def onImageRemoved(self, text):
         self.tableFrame.delTableData(text)
@@ -486,9 +469,8 @@ class ImageFrame(CommonFrame):
             view.addAction(openAction)
             view.addAction(showAction)
 
-            # view.addHiddenAction(Action(FluentIcon.SETTING, self.tr('Settings'), shortcut='Ctrl+S'))
             view.resizeToSuitableWidth()
-            self.flyoutMenu = Flyout.make(view, event.screenPos().toPoint(), self, FlyoutAnimationType.FADE_IN)
+            self.flyoutMenu = Flyout.make(view, event.globalPosition().toPoint(), self, FlyoutAnimationType.FADE_IN)
 
     def deleteImage(self):
         if self.imagePath is not None and self.imagePath.exists():
@@ -539,7 +521,7 @@ class TableFrame(TableWidget):
         for i, items in enumerate(sheet):
             for j, item in enumerate(items):
                 self.setItem(i, j, QTableWidgetItem(item))
-        self.resizeColumnsToContents()
+        self.adjustColumnsToContents()
 
     def delTableData(self, text: str):
         row = 0
@@ -556,6 +538,17 @@ class TableFrame(TableWidget):
                 self.removeRow(row)  # 删除行后索引不递增
             else:
                 row += 1  # 只有不删除时才递增行号
+        self.setCurrentCell(self.currentRow(), 0)
+
+    def adjustColumnsToContents(self):
+        self.resizeColumnsToContents()
+        columnsWidth = [self.columnWidth(col) for col in range(self.columnCount())]
+        totalWidth = sum(columnsWidth)
+        maxWidth = self.viewport().width()
+        if maxWidth > totalWidth:
+            columnsPercentage = [width / totalWidth for width in columnsWidth]
+            for col in range(self.columnCount()):
+                self.setColumnWidth(col, int(columnsPercentage[col] * maxWidth))
 
 
 def moveCenter(widget: QWidget):
