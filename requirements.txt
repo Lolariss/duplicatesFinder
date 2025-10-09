@@ -1,4 +1,4 @@
-pillow==10.3.0
+pillow==11.3.0
 imagehash
 send2trash
 PySide6

@@ -206,8 +206,8 @@ class DuplicateFinderUI(FramelessWindow):
         else:
             self.showMsgDialog("提示", "检查工作完成啦(￣▽￣)")
 
+        sheet = []
         try:
-            sheet = []
             for srcPath, tarInfos in duplicates.items():
                 for nameInfo in tarInfos:
                     sheet.append([srcPath, str(nameInfo[0]), f"{nameInfo[1] * 100}%"])
