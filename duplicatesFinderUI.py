@@ -16,6 +16,9 @@ from qfluentwidgets.components.widgets.frameless_window import FramelessWindow
 
 class DuplicateFinderUI(FramelessWindow):
     signalPostProcess = Signal(object)
+    PHASH = "整体结构感知"
+    DHASH = "纹理边缘差异"
+    WHASH = "多维空间分析"
 
     def __init__(self):
         super().__init__()
@@ -83,7 +86,7 @@ class DuplicateFinderUI(FramelessWindow):
         self.deepSeekBox.setChecked(False)
 
         self.hashTypeBox = ComboBox()
-        self.hashTypeBox.addItems(["色彩结构感知", "边缘形状感知"])
+        self.hashTypeBox.addItems([self.PHASH, self.DHASH, self.WHASH])
 
         controlPanel = QVBoxLayout()
         controlPanel.setContentsMargins(10, 5, 10, 5)
@@ -155,7 +158,11 @@ class DuplicateFinderUI(FramelessWindow):
 
         currentName = self.pivotWidget.getCurrentWidgetObjectName()
         isDeepSeek = self.deepSeekBox.isChecked()
-        hashType, threshold = {"色彩结构感知": ("phash", 12), "边缘形状感知": ("dhash", 10)}.get(self.hashTypeBox.currentText())
+        hashType, hashSize, threshold = {
+            self.PHASH: ("phash", 8, 12),
+            self.DHASH: ("dhash", 8, 10),
+            self.WHASH: ("whash", 8, 12)
+        }.get(self.hashTypeBox.currentText())
 
         if currentName == "dirLineEdit":
             srcDir = self.dirLineEdit.getDirectory()
@@ -163,7 +170,7 @@ class DuplicateFinderUI(FramelessWindow):
                 self.showMsgDialog("提示", "找不到图片的目录路径(ノдヽ)")
                 self.setInputStatus(True)
                 return
-            _thread.start_new_thread(self.findDuplicate, (srcDir, hashType, isDeepSeek, threshold, False))
+            _thread.start_new_thread(self.findDuplicate, (srcDir, hashType, hashSize, isDeepSeek, threshold, False))
 
         elif currentName == "bothLineEdit":
             srcDir = self.srcLineEdit.getDirectory()
@@ -172,26 +179,26 @@ class DuplicateFinderUI(FramelessWindow):
                 self.showMsgDialog("提示", "找不到图片的目录路径(°Д°)")
                 self.setInputStatus(True)
                 return
-            _thread.start_new_thread(self.findDuplicates, (srcDir, tarDir, hashType, isDeepSeek, threshold))
+            _thread.start_new_thread(self.findDuplicates, (srcDir, tarDir, hashType, hashSize, isDeepSeek, threshold))
 
         else:
             pass
 
-    def findDuplicate(self, srcDir: str | Path, hashType: str, isDeepSeek: bool = False, threshold: int = 12, fullMatch: bool = False):
+    def findDuplicate(self, srcDir: str | Path, hashType: str, hashSize: int = 8, isDeepSeek: bool = False, threshold: int = 12, fullMatch: bool = False):
         try:
             logger.info(f"开始工作了, 检查[{srcDir}]目录下的图片.")
-            srcHashes = self.duplicatesFinder.calcHashes(srcDir, hashType, isDeepSeek)
+            srcHashes = self.duplicatesFinder.calcHashes(srcDir, hashType, hashSize, isDeepSeek)
             duplicates = self.duplicatesFinder.findDuplicate(srcHashes, threshold, fullMatch)
             self.signalPostProcess.emit(duplicates)
         except Exception as e:
             logger.exception(e)
             self.showMsgDialog("错误", "找不同时走神了...(-`д-´)")
 
-    def findDuplicates(self, srcDir: str | Path, tarDir: str | Path, hashType: str, isDeepSeek: bool = False, threshold: int = 12):
+    def findDuplicates(self, srcDir: str | Path, tarDir: str | Path, hashType: str, hashSize: int = 8, isDeepSeek: bool = False, threshold: int = 12):
         try:
             logger.info(f"开始工作了, 对比[{srcDir}]和[{tarDir}]目录下的图片.")
-            srcHashes = self.duplicatesFinder.calcHashes(srcDir, hashType, isDeepSeek)
-            tarHashes = self.duplicatesFinder.calcHashes(tarDir, hashType, isDeepSeek)
+            srcHashes = self.duplicatesFinder.calcHashes(srcDir, hashType, hashSize, isDeepSeek)
+            tarHashes = self.duplicatesFinder.calcHashes(tarDir, hashType, hashSize, isDeepSeek)
             duplicates = self.duplicatesFinder.findDuplicates(srcHashes, tarHashes, threshold)
             self.signalPostProcess.emit(duplicates)
         except Exception as e:
@@ -521,7 +528,6 @@ class TableFrame(TableWidget):
         for i, items in enumerate(sheet):
             for j, item in enumerate(items):
                 self.setItem(i, j, QTableWidgetItem(item))
-        self.adjustColumnsToContents()
 
     def delTableData(self, text: str):
         row = 0
@@ -544,12 +550,15 @@ class TableFrame(TableWidget):
         self.resizeColumnsToContents()
         columnsWidth = [self.columnWidth(col) for col in range(self.columnCount())]
         totalWidth = sum(columnsWidth)
-        maxWidth = self.viewport().width()
-        if maxWidth > totalWidth:
-            columnsPercentage = [width / totalWidth for width in columnsWidth]
-            for col in range(self.columnCount()):
-                self.setColumnWidth(col, int(columnsPercentage[col] * maxWidth))
+        maxWidth = self.viewport().width() - 50
+        columnsPercentage = [width / totalWidth for width in columnsWidth]
+        for col in range(self.columnCount()):
+            self.setColumnWidth(col, max(100, int(columnsPercentage[col] * maxWidth)))
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.adjustColumnsToContents()
+        event.accept()
 
 def moveCenter(widget: QWidget):
     rect = QApplication.primaryScreen().availableGeometry()

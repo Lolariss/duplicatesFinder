@@ -11,25 +11,28 @@ class DuplicateFinder:
     def __init__(self):
         self.hashMap = {
             'phash': imagehash.phash,
-            'dhash': imagehash.dhash
+            'dhash': imagehash.dhash,
+            'whash': imagehash.whash
         }
 
-    def calcHash(self, imagePath: str | Path, hashMethod='phash'):
+    def calcHash(self, imagePath: str | Path, hashMethod='phash', hashSize: int = 8):
         try:
             img = Image.open(imagePath)
+            if img.mode == "RGBA":
+                img = img.convert("RGB")
             hashFunc = self.hashMap[hashMethod]
-            return str(imagePath), hashFunc(img)
+            return str(imagePath), hashFunc(img, hash_size=hashSize)
         except Exception as e:
             logging.error(f"Error processing {imagePath}: {str(e)}")
             return str(imagePath), None
 
-    def calcHashes(self, imageDir: str | Path, hashMethod='phash', isDeepSeek: bool = False):
+    def calcHashes(self, imageDir: str | Path, hashMethod='phash', hashSize: int = 8, isDeepSeek: bool = False):
         """多线程批量生成哈希字典"""
         imageDir = imageDir if isinstance(imageDir, Path) else Path(imageDir)
         hashes = {}
         with ThreadPoolExecutor() as executor:
             pathList = imageDir.rglob("*") if isDeepSeek else imageDir.glob("*")
-            futures = [executor.submit(self.calcHash, path, hashMethod) for path in pathList if path.suffix.lower() in {'.jpg', '.png', '.jpeg'}]
+            futures = [executor.submit(self.calcHash, path, hashMethod, hashSize) for path in pathList if path.suffix.lower() in {'.jpg', '.png', '.jpeg'}]
             for future in futures:
                 path, h = future.result()
                 if h is not None:
