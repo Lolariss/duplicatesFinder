@@ -10,7 +10,7 @@ from PySide6.QtGui import QImage, QPixmap, QPainter, QPen, QColor
 from PySide6.QtWidgets import QVBoxLayout, QApplication, QFileDialog, QFrame, QWidget, QStackedWidget, QLabel, QTableWidgetItem, QHBoxLayout, QSplitter, \
     QTableWidget
 from qfluentwidgets import LineEdit, PushButton, MessageBox, TabBar, TabCloseButtonDisplayMode, FluentIcon, Icon, MSFluentTitleBar, CommandBarView, Action, \
-    FlyoutAnimationType, Flyout, TableWidget, IndeterminateProgressBar, CheckBox, ComboBox
+    FlyoutAnimationType, Flyout, TableWidget, IndeterminateProgressBar, CheckBox, ComboBox, FluentTranslator
 from qfluentwidgets.components.widgets.frameless_window import FramelessWindow
 
 
@@ -560,6 +560,7 @@ class TableFrame(TableWidget):
         self.adjustColumnsToContents()
         event.accept()
 
+
 def moveCenter(widget: QWidget):
     rect = QApplication.primaryScreen().availableGeometry()
     w, h = rect.width(), rect.height()
@@ -571,6 +572,8 @@ if __name__ == '__main__':
     try:
         app = QApplication(sys.argv)
         app.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+        translator = FluentTranslator()
+        app.installTranslator(translator)
         window = DuplicateFinderUI()
         window.show()
         sys.exit(app.exec())
