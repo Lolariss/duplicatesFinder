@@ -38,7 +38,13 @@ class DuplicateFinder:
         return hashes
 
     def findDuplicate(self, hashes, threshold=12, fullMatch=False):
-        """多线程安全的结果聚合"""
+        """
+        多线程对比哈希集合
+        :param hashes: Dict[str, ImageHash] 哈希字典
+        :param threshold: int 汉明距离阈值
+        :param fullMatch: bool 是否进行全量对比
+        :return: Dict[str, List[Tuple[str, float]]] 重复项字典
+        """
         duplicates = {}
         hashItems = list(hashes.items())
 

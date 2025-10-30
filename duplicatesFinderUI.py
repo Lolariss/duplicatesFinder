@@ -161,7 +161,7 @@ class DuplicateFinderUI(FramelessWindow):
         hashType, hashSize, threshold = {
             self.PHASH: ("phash", 8, 12),
             self.DHASH: ("dhash", 8, 10),
-            self.WHASH: ("whash", 8, 12)
+            self.WHASH: ("whash", 8, 10)
         }.get(self.hashTypeBox.currentText())
 
         if currentName == "dirLineEdit":
@@ -186,7 +186,7 @@ class DuplicateFinderUI(FramelessWindow):
 
     def findDuplicate(self, srcDir: str | Path, hashType: str, hashSize: int = 8, isDeepSeek: bool = False, threshold: int = 12, fullMatch: bool = False):
         try:
-            logger.info(f"开始工作了, 检查[{srcDir}]目录下的图片.")
+            logger.info(f"开始{hashType} 检查[{srcDir}]目录下的图片.[hashSize:{hashSize}], isDeepSeek:{isDeepSeek}, threshold:{threshold}")
             srcHashes = self.duplicatesFinder.calcHashes(srcDir, hashType, hashSize, isDeepSeek)
             duplicates = self.duplicatesFinder.findDuplicate(srcHashes, threshold, fullMatch)
             self.signalPostProcess.emit(duplicates)
@@ -196,7 +196,7 @@ class DuplicateFinderUI(FramelessWindow):
 
     def findDuplicates(self, srcDir: str | Path, tarDir: str | Path, hashType: str, hashSize: int = 8, isDeepSeek: bool = False, threshold: int = 12):
         try:
-            logger.info(f"开始工作了, 对比[{srcDir}]和[{tarDir}]目录下的图片.")
+            logger.info(f"开始{hashType} 对比[{srcDir}]和[{tarDir}]目录下的图片.[hashSize:{hashSize}], isDeepSeek:{isDeepSeek}, threshold:{threshold}")
             srcHashes = self.duplicatesFinder.calcHashes(srcDir, hashType, hashSize, isDeepSeek)
             tarHashes = self.duplicatesFinder.calcHashes(tarDir, hashType, hashSize, isDeepSeek)
             duplicates = self.duplicatesFinder.findDuplicates(srcHashes, tarHashes, threshold)
