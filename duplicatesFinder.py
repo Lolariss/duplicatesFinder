@@ -1,5 +1,4 @@
 import logging
-
 import imagehash
 
 from pathlib import Path
@@ -18,8 +17,6 @@ class DuplicateFinder:
     def calcHash(self, imagePath: str | Path, hashMethod='phash', hashSize: int = 8):
         try:
             img = Image.open(imagePath)
-            if img.mode == "RGBA":
-                img = img.convert("RGB")
             hashFunc = self.hashMap[hashMethod]
             return str(imagePath), hashFunc(img, hash_size=hashSize)
         except Exception as e:
@@ -28,19 +25,26 @@ class DuplicateFinder:
 
     def calcHashes(self, imageDir: str | Path, hashMethod='phash', hashSize: int = 8, isDeepSeek: bool = False):
         """多线程批量生成哈希字典"""
-        imageDir = imageDir if isinstance(imageDir, Path) else Path(imageDir)
         hashes = {}
+        pathList = [p for p in (Path(imageDir).rglob("*") if isDeepSeek else Path(imageDir).glob("*")) if p.suffix.lower() in {'.jpg', '.png', '.jpeg'}]
         with ThreadPoolExecutor() as executor:
-            pathList = imageDir.rglob("*") if isDeepSeek else imageDir.glob("*")
-            futures = [executor.submit(self.calcHash, path, hashMethod, hashSize) for path in pathList if path.suffix.lower() in {'.jpg', '.png', '.jpeg'}]
-            for future in futures:
-                path, h = future.result()
-                if h is not None:
-                    hashes[path] = h
+            batchSize = executor._max_workers * 3
+            for i in range(0, len(pathList), batchSize):
+                futures = [executor.submit(self.calcHash, path, hashMethod, hashSize) for path in pathList[i:i + batchSize]]
+                for future in futures:
+                    path, h = future.result()
+                    if h is not None:
+                        hashes[path] = h
         return hashes
 
     def findDuplicate(self, hashes, threshold=12, fullMatch=False):
-        """多线程安全的结果聚合"""
+        """
+        多线程对比哈希集合
+        :param hashes: Dict[str, ImageHash] 哈希字典
+        :param threshold: int 汉明距离阈值
+        :param fullMatch: bool 是否进行全量对比
+        :return: Dict[str, List[Tuple[str, float]]] 重复项字典
+        """
         duplicates = {}
         hashItems = list(hashes.items())
 
