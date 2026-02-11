@@ -40,4 +40,4 @@ def initLogger(name: str = "logs", maxBytes: int = 0):
     return logger
 
 
-logger = initLogger("keyMacro", 10 * 1048576)
+logger = initLogger("duplicatesFinder", 10 * 1048576)

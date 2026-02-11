@@ -1,4 +1,3 @@
-import sys
 import _thread
 import send2trash
 from pathlib import Path
@@ -10,7 +9,7 @@ from PySide6.QtGui import QImage, QPixmap, QPainter, QPen, QColor
 from PySide6.QtWidgets import QVBoxLayout, QApplication, QFileDialog, QFrame, QWidget, QStackedWidget, QLabel, QTableWidgetItem, QHBoxLayout, QSplitter, \
     QTableWidget
 from qfluentwidgets import LineEdit, PushButton, MessageBox, TabBar, TabCloseButtonDisplayMode, FluentIcon, Icon, MSFluentTitleBar, CommandBarView, Action, \
-    FlyoutAnimationType, Flyout, TableWidget, IndeterminateProgressBar, CheckBox, ComboBox, FluentTranslator
+    FlyoutAnimationType, Flyout, TableWidget, IndeterminateProgressBar, CheckBox, ComboBox
 from qfluentwidgets.components.widgets.frameless_window import FramelessWindow
 
 
@@ -565,20 +564,3 @@ def moveCenter(widget: QWidget):
     rect = QApplication.primaryScreen().availableGeometry()
     w, h = rect.width(), rect.height()
     widget.move(w // 2 - widget.width() // 2, h // 2 - widget.height() // 2)
-
-
-if __name__ == '__main__':
-    logger.info("----------------------------begin--------------------------------")
-    try:
-        app = QApplication(sys.argv)
-        app.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-        translator = FluentTranslator()
-        app.installTranslator(translator)
-        window = DuplicateFinderUI()
-        window.show()
-        sys.exit(app.exec())
-    except BaseException as e:
-        if isinstance(e, SystemExit) and e.code == 0:
-            logger.info("-----------------------------end---------------------------------")
-        else:
-            logger.exception(f"未知错误: {e}")
